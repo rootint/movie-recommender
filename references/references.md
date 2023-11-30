@@ -1,0 +1,1 @@
+1) The [instruction](../data/raw/ml-100k/README) the the dataset (if the link is not available, unzip the data/raw/ml-100k.zip)
