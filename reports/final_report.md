@@ -1,5 +1,5 @@
 # Introduction
-...
+In the rapidly evolving landscape of digital content, recommendation systems have become an indispensable tool in personalizing user experiences. This project aims to develop a hybrid recommendation system that merges the strengths of two distinct approaches: Alternating Least Squares (ALS) for collaborative filtering and Random Forest for content-based predictions. This system is designed to address these challenges by leveraging the synergies between collaborative and content-based methods, offering a nuanced solution that is adaptable to both popular and niche user interests.
 # Data analysis
 First of all, I checked the u.data file. There, I decided to drop the timestamp column, because I can't use it in any way in the ALS approach, I just need the movies, users and their respective ratings. Furthermore, I decided not to clean data from the movies that have a small amount of ratings, because ALS is designed to handle sparse matrices, and it would be a waste of opportunity not to leverage recommendations of "long tail" items - those that may not be hugely popular but are highly relevant to a subset of users. Dropping movies with fewer ratings might exclude these niche but potentially valuable recommendations.<br>
 After that, I checked the u.item dataset and cleared the `video_release_date` column since it had only NaNs in it. Also, I dropped the `IMDb_URL, title, release_date` columns, since they are unique values (apart from the release_date, which I just didn't use in the model). <br>
@@ -9,7 +9,7 @@ Also, it is worth noting that I saved all the files in .parquet format after pre
 For training and testing I used the [u1.base](../data/raw/ml-100k/u1.base) and the [u1.test](../data/raw/ml-100k/u1.test), as this is the split that is used to evaluate the model based on my findings online: [here is the leaderboard](https://paperswithcode.com/sota/collaborative-filtering-on-movielens-100k)
 
 # Model Implementation
-For the model, I decided to go with a hybrid approach, using ALS for collaborative filtering, and Random Forest to handle the content-based predictions, which are the ones based on the demographics. So, my ALS and Random Forest algorithms predicted ratings, and after getting both ratings, I did the following math: `final_rating = als_coeff * als_ratings + rf_coeff * rf_ratings`, where `als_coeff` and `rf_coeff` are the coefficients I got using a Linear Regression. Initially, I tried just averaging the values, but it worsened the performance compared to just using ALS, as Random Forest gave worse predictions. Combining the values in such a smart way allows the RF model to partially fix the disadvantages of the ALS approach, such as cold-starting. <br>
+For the model, I decided to go with a hybrid approach, using ALS for collaborative filtering, and Random Forest to handle the content-based predictions, which are the ones based on the demographics. So, my ALS and Random Forest algorithms predicted ratings, and after getting both ratings, I did the following math: `final_rating = als_coeff * als_ratings + rf_coeff * rf_ratings`, where `als_coeff` and `rf_coeff` are the coefficients I got using a Linear Regression model. Initially, I tried just averaging the values, but it worsened the performance compared to just using ALS, as Random Forest gave worse predictions. Combining the values in such a smart way allows the RF model to partially fix the disadvantages of the ALS approach, such as cold-starting. <br>
 Here are the reasons why I chose ALS in my collaborative filtering:
 1) It is better than a user-based approach, because user-based doesn't scale well.
 2) It is better than a item-based approach, because item-based handles sparse matrices worse than ALS.
@@ -38,45 +38,16 @@ Here are the reasons why I chose the Random Forest approach in my content-based 
 3) Potential Performance Increase:
    - I assume that trying a state-of-the-art solution like GNN would bring more accurate recommendations, and I didn't implement it.
 # Training Process
-Initially, I tried using the default hyperparameters for both models. 
+First of all, I needed to find a good set of hyperparameters for the models, so I ran grid search and cross-validated those values on ALS to find the best rank and regulatization parameter. I've chosen these hyperparameters, because they influence the result the most. Furthermore, to save computation time, I decided to make the max iteration parameter fixed. The best rank out of [10, 20, 30, 35, 40, 50] was 50, and the best regularization parameter out of [0.01, 0.025, 0.05, 0.1, 0.14, 0.15] turned out to be 0.14. <br>
+After that, I chose the following parameter grid for Random Forest: `param_grid = {
+    'n_estimators': [100, 200, 300],
+    'max_depth': [None, 10, 20, 30],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4]
+}`. The chosen parameter grid for the Random Forest model, including n_estimators (100, 200, 300), max_depth (None, 10, 20, 30), min_samples_split (2, 5, 10), and min_samples_leaf (1, 2, 4), is designed to balance model complexity and performance. It aims to explore a range of configurations from simpler, less computationally intensive models to more complex ones, ensuring effective learning while avoiding overfitting. This grid serves as a comprehensive starting point for hyperparameter tuning to optimize the Random Forest for diverse datasets.<br>
+After training both models, I saw that based on RMSE and MAE, ALS produced much better results than Random Forest, so I needed to combine both models somehow to make the hybrid approach perform better. As I mentioned in the Model Implementation section, I combined both approaches using coefficients that my linear regression model produced, and this improved the output! <br>
 # Evaluation
-...
+I've chosen RMSE and MAE as my metrics, because RMSE is a widely used metric in recommendation systems, for example [here](https://paperswithcode.com/sota/collaborative-filtering-on-movielens-100). Furthermore, it is sensitive to large errors, which is perfect for ratings, as they are just from 0 to 5. MAE was chosen to complement RMSE, as RMSE amplifies large errors, but MAE provides an average error level. I didn't use precision @ k or recall @ k, because the primary purpose of my models was to generate ratings, and only based on them do I provide recommendations by sorting ratings in descending order (check evaluate.py for more details about the implementation).<br>
+![Graph](figures/final_report.png) <br> These are the results for 3 approaches - ALS, RF and the hybrid model. As we can see, the hybrid model performs the best, boasting an RMSE of just 0.9108300704330717 and an MAE of 0.7186688314985312. If we compare the result to [state of the art results](https://paperswithcode.com/sota/collaborative-filtering-on-movielens-100k), we can see that my model performed pretty well based on the RMSE metric - it's somewhere around 10th place on that leaderboard.
 # Results
-...
-
-In the `reports` directory create a report about your work. In the report, describe in details the implementation of your system. Mention its advantages and disadvantages.
-
-
-
-
-Creating a comprehensive recommendation system with these three components – ALS for collaborative filtering, user demographics-based recommendations, and genre-based recommendations – is an ambitious but highly effective approach. Let's break down the process:
-
-1. ALS for Collaborative Filtering
-You've already implemented this part. The ALS model in PySpark uses user-item interaction data (like ratings) to predict user preferences based on similar user behaviors.
-
-2. User Demographics-Based Recommendations
-To incorporate user demographics into the recommendation system, you'll typically use a content-based approach or a hybrid model that includes demographic data. Here's a high-level overview:
-
-Feature Engineering: Process the demographic data (age, gender, occupation, zip code) and convert it into a format suitable for machine learning (e.g., one-hot encoding for categorical data).
-Model Building: Use a machine learning model (like Random Forest, Logistic Regression, etc.) to predict user preferences based on their demographic data.
-Combining with User Preferences: Use this model to predict movie preferences for each user based on their demographics. This could involve identifying demographic trends (e.g., certain age groups preferring specific genres) and using these insights to make recommendations.
-3. Genre-Based Recommendations
-This part involves recommending movies based on their similarity in genres:
-
-Process Genre Data: Transform the genre information of each movie into a suitable format (like one-hot encoded vectors).
-Calculate Similarities: For a given movie, calculate its similarity to all other movies based on genres (using cosine similarity, for example).
-Recommendation Logic: For a user who likes a certain movie, find and recommend movies that are similar in genre to that movie.
-Integrating the Three Components
-Hybrid Recommendation System: Develop a system that combines recommendations from all three methods. This could be done by averaging the scores from each method or using a more complex approach like a machine learning model to integrate them.
-Weighted Recommendations: Depending on the confidence in each method, assign different weights to each component's recommendations.
-Example Workflow
-Get Collaborative Filtering Recommendations: Use the ALS model to predict user preferences for movies.
-Get Demographic-Based Recommendations: Predict user preferences based on their demographic profile.
-Get Genre-Based Recommendations: Identify movies similar in genre to those the user has rated highly.
-Combine Recommendations: Integrate these three sets of recommendations into a final recommendation list for each user.
-Challenges and Considerations
-Data Sparsity: Demographic and genre-based methods can help mitigate the cold start problem in collaborative filtering.
-Model Complexity: Integrating multiple models increases complexity. Ensure that the final system is manageable and maintainable.
-Evaluation: Evaluate the performance of each component and the integrated system using relevant metrics (RMSE, Precision@k, Recall@k, etc.).
-User Feedback Loop: Consider incorporating a mechanism to capture user feedback, which can be used to continuously improve the recommendation system.
-This approach leverages the strengths of collaborative filtering while augmenting it with the targeted focus of demographic and content-based methods, leading to a more rounded and effective recommendation system.
+The hybrid recommendation system, combining ALS for collaborative filtering and Random Forest for content-based predictions, shows promising results. It achieves an RMSE of 0.9108 and an MAE of 0.7187, indicating strong predictive accuracy. This performance places it competitively among existing recommendation models, particularly highlighting its effectiveness in sparse data situations and addressing the cold-start problem. These results underscore the potential of hybrid approaches in recommendation systems and pave the way for future enhancements.

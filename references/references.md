@@ -1,2 +1,3 @@
 1) The [instruction](../data/raw/ml-100k/README) to the dataset (if the link is not available, unzip the data/raw/ml-100k.zip)
 2) Cool article about recommendations: https://towardsdatascience.com/prototyping-a-recommender-system-step-by-step-part-1-knn-item-based-collaborative-filtering-637969614ea
+3) State of the art MovieLens100k results: https://paperswithcode.com/sota/collaborative-filtering-on-movielens-100 
